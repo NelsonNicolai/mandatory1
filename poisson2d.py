@@ -55,7 +55,7 @@ class Poisson2D:
         """
         dx = self.L / N
         dy = self.L / N
-        
+
         D2x  = self.p.D2(N)*(1./dx**2)
         D2y  = self.p.D2(n)*(1./dy**2)
 
@@ -94,7 +94,7 @@ class Poisson2D:
 
         """
         #making solution U / b right hand side vector
-        xij, yij = self.create_mesh
+        xij, yij = self.create_mesh(N)
         U = sp.solve(f, xij, yij)
         U[0  , :  ] = ue[0  , :  ]  #upper border
         U[N-1, :  ] = ue[N-1, :  ]  #lower border
@@ -119,7 +119,7 @@ class Poisson2D:
         -------
         array - The input function as a mesh function
         """
-        
+
         raise NotImplementedError("The meshfunction method is not implemented yet.")
 
     def get_boundary_indices(self, N: int) -> np.ndarray:
