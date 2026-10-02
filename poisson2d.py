@@ -53,7 +53,16 @@ class Poisson2D:
         A : scipy sparse LIL matrix
             The vectorized Laplace operator
         """
-        raise NotImplementedError("The laplace method is not implemented yet.")
+        dx = self.L / N
+        dy = self.L / N
+        
+        D2x  = self.p.D2(N)*(1./dx**2)
+        D2y  = self.p.D2(n)*(1./dy**2)
+
+        d2x2 = sparse.kron(D2x, sparse.eye(N+1)) #
+        d2y2 = sparse.kron(sparse.eye(N+1), D2y) #flipped as I x D2y
+
+        return d2x2 + d2y2
 
     def assemble(
         self, N: int, f: sp.Expr, ue: sp.Expr
@@ -84,7 +93,20 @@ class Poisson2D:
         Dirichlet boundary conditions using the exact solution ue.
 
         """
-        raise NotImplementedError("The assemble method is not implemented yet.")
+        #making solution U / b right hand side vector
+        xij, yij = self.create_mesh
+        U = sp.solve(f, xij, yij)
+        U[0  , :  ] = ue[0  , :  ]  #upper border
+        U[N-1, :  ] = ue[N-1, :  ]  #lower border
+        U[:  , 0  ] = ue[:  , 0  ]  #left  border
+        U[:  , N-1] = ue[:  , N-1]  #right border
+        b           = np.vectorize(U)
+
+        #making A
+        A = self.laplace(self, N)
+
+        return A, b
+
 
     def meshfunction(self, u: sp.Expr, xij: np.ndarray, yij: np.ndarray) -> np.ndarray:
         """Return Sympy function as mesh function
@@ -97,6 +119,7 @@ class Poisson2D:
         -------
         array - The input function as a mesh function
         """
+        
         raise NotImplementedError("The meshfunction method is not implemented yet.")
 
     def get_boundary_indices(self, N: int) -> np.ndarray:
