@@ -14,12 +14,13 @@ x, y = sp.symbols("x,y")
 class Poisson2D:
     r"""Solve Poisson's equation in 2D::
 
-        \nabla^2 u(x, y) = f(x, y), x, y in [0, L] x [0, L]
+        \nabla^2 u(x, y) = f(x, y), x, y |in [0, L] x [0, L]
 
     with Dirichlet boundary conditions.
     """
 
     def __init__(self, L: float):
+        self.L = L
         self.p = Poisson(L)  # we can reuse some of the code from the 1D case
 
     def create_mesh(self, N: int) -> tuple[np.ndarray, np.ndarray]:
@@ -29,6 +30,7 @@ class Poisson2D:
         ----------
         N : int
             The number of uniform intervals in both x and y directions
+
         Returns
         -------
         xij : 2D array
@@ -56,11 +58,11 @@ class Poisson2D:
         dx = self.L / N
         dy = self.L / N
 
-        D2x  = self.p.D2(N)*(1./dx**2)
-        D2y  = self.p.D2(n)*(1./dy**2)
+        D2x = self.p.D2(N, dx) * (1.0 / dx**2)
+        D2y = self.p.D2(N, dy) * (1.0 / dy**2)
 
-        d2x2 = sparse.kron(D2x, sparse.eye(N+1)) #
-        d2y2 = sparse.kron(sparse.eye(N+1), D2y) #flipped as I x D2y
+        d2x2 = sparse.kron(D2x, sparse.eye(N + 1))
+        d2y2 = sparse.kron(sparse.eye(N + 1), D2y)
 
         return d2x2 + d2y2
 
@@ -91,24 +93,37 @@ class Poisson2D:
         to create the 2D Laplace operator. Then, assemble the right-hand side
         vector b by evaluating the function f at the mesh points and applying
         Dirichlet boundary conditions using the exact solution ue.
-
         """
-        #making solution U / b right hand side vector
-        xij, yij = self.create_mesh(N)
-        U = sp.solve(f, xij, yij)
-        U[0  , :  ] = ue[0  , :  ]  #upper border
-        U[N-1, :  ] = ue[N-1, :  ]  #lower border
-        U[:  , 0  ] = ue[:  , 0  ]  #left  border
-        U[:  , N-1] = ue[:  , N-1]  #right border
-        b           = np.vectorize(U)
 
-        #making A
-        A = self.laplace(self, N)
+        # creating mesh
+        xij, yij = self.create_mesh(N)
+
+        # Making U
+        Index = self.get_boundary_indices(N)
+        meshfunc = self.meshfunction(f, xij, yij)
+        meshue = self.meshfunction(ue, xij, yij)
+
+        # vectorizing
+        vecue = meshue.ravel()
+        vecmesh = meshfunc.ravel()
+
+        vecmesh[Index] = vecue[Index]
+        b = vecmesh
+
+        # making A
+        A = self.laplace(N)
+        for i in Index:
+            A[i, :] = 0
+            A[i, i] = 1
+            vecmesh[i] = vecue[i]
+
+        A = A.tocsr()
 
         return A, b
 
-
-    def meshfunction(self, u: sp.Expr, xij: np.ndarray, yij: np.ndarray) -> np.ndarray:
+    def meshfunction(
+        self, u: sp.Expr, xij: np.ndarray, yij: np.ndarray
+    ) -> np.ndarray:
         """Return Sympy function as mesh function
 
         Parameters
@@ -119,14 +134,19 @@ class Poisson2D:
         -------
         array - The input function as a mesh function
         """
-
-        raise NotImplementedError("The meshfunction method is not implemented yet.")
+        U = sp.lambdify((x, y), u, "numpy")
+        return U(xij, yij)
 
     def get_boundary_indices(self, N: int) -> np.ndarray:
-        """Return indices of vectorized matrix that belongs to the boundary"""
-        raise NotImplementedError(
-            "The get_boundary_indices method is not implemented yet."
-        )
+        """Return indices of vectorized matrix that belongs to the boundary."""
+        n = N + 1
+
+        top = np.arange(0, n)
+        bottom = np.arange(N * n, (N + 1) * n)
+        left = np.arange(0, (N + 1) * n, n)
+        right = np.arange(N, (N + 1) * n, n)
+
+        return np.unique(np.concatenate([top, bottom, left, right]))
 
     def l2_error(self, u: np.ndarray, ue: sp.Expr) -> float:
         """Return l2-error
@@ -141,9 +161,24 @@ class Poisson2D:
         Returns
         -------
         float - The l2-error
-
         """
-        raise NotImplementedError("The l2_error method is not implemented yet.")
+
+        # setting up mesh functions for exact solution
+        N = len(u) - 1
+
+        xij, yij = self.create_mesh(N)
+        meshue = self.meshfunction(ue, xij, yij)
+
+        # defining Delta x & Delta y
+        dx = self.L / N
+        dy = self.L / N
+        errsum = 0
+
+        errsum = np.sum((u - meshue) ** 2)
+
+        errnorm = (dx * dy * errsum) ** 0.5
+
+        return errnorm
 
     def __call__(self, N: int, ue: sp.Expr) -> np.ndarray:
         """Solve Poisson's equation with a given manufactured solution
@@ -158,21 +193,37 @@ class Poisson2D:
         Returns
         -------
         The solution as a Numpy array
-
         """
-        A, b = self.assemble(N, sp.diff(ue, x, 2) + sp.diff(ue, y, 2), ue)
-        return sparse_linalg.spsolve(A, b.ravel()).reshape((N + 1, N + 1))
+
+        A, b = self.assemble(
+            N,
+            sp.diff(ue, x, 2) + sp.diff(ue, y, 2),
+            ue
+        )
+
+        return sparse_linalg.spsolve(
+            A,
+            b.ravel()
+        ).reshape((N + 1, N + 1))
 
     def convergence_rates(self, ue: sp.Expr, m: int = 6):
         E = []
         h = []
+
         N0 = 8
+
         for _ in range(m):
             u = self(N0, ue)
             E.append(self.l2_error(u, ue))
             h.append(self.p.L / N0)
             N0 *= 2
-        r = [np.log(E[i - 1] / E[i]) / np.log(h[i - 1] / h[i]) for i in range(1, m, 1)]
+
+        r = [
+            np.log(E[i - 1] / E[i])
+            / np.log(h[i - 1] / h[i])
+            for i in range(1, m, 1)
+        ]
+
         return r, np.array(E), np.array(h)
 
     def eval(self, U: np.ndarray, x: float, y: float) -> float:
@@ -186,27 +237,123 @@ class Poisson2D:
         Returns
         -------
         The value of u(x, y)
-
         """
-        raise NotImplementedError("The eval method is not implemented yet.")
+       
+
+        Npoints = 2
+
+        xij,yij = self.create_mesh(N)
+
+        N = len(U) - 1
+        dx = self.L / N
+        dy = self.L / N
+
+        closestx = x // dx
+        closesty = y // dy
+
+        upperx = closestx + Npoints
+        lowerx = closestx - Npoints
+
+        uppery = closesty + Npoints
+        lowery = closesty - Npoints
+
+        lx = Lagrangebasis(
+            xij[lowerx:upperx, 0],
+            x=x
+        )
+
+        ly = Lagrangebasis(
+            yij[0, lowery:uppery],
+            x=y
+        )
+
+        L2 = Lagrangefunction2D(
+            U[lowerx:upperx, lowery:uppery],
+            lx,
+            ly
+        )
+
+        return L2.subs({x: x, y: y})
+
+
+def Lagrangebasis(xj, x=x):
+    """Construct Lagrange basis for points in xj
+
+    Parameters
+    ----------
+    xj : array
+        Interpolation points (nodes)
+    x : Sympy Symbol
+
+    Returns
+    -------
+    Lagrange basis as a list of Sympy functions
+    """
+    from sympy import Mul
+
+    n = len(xj)
+    ell = []
+
+    numert = Mul(*[x - xj[i] for i in range(n)])
+
+    for i in range(n):
+        numer = numert / (x - xj[i])
+        denom = Mul(
+            *[
+                (xj[i] - xj[j])
+                for j in range(n)
+                if i != j
+            ]
+        )
+        ell.append(numer / denom)
+
+    return ell
+
+
+def Lagrangefunction2D(u, basisx, basisy):
+    N, M = u.shape
+    f = 0
+
+    for i in range(N):
+        for j in range(M):
+            f += basisx[i] * basisy[j] * u[i, j]
+
+    return f
 
 
 def test_convergence_poisson2d():
     # This exact solution is NOT zero on the entire boundary
-    ue = sp.exp(sp.cos(4 * sp.pi * x) * sp.sin(2 * sp.pi * y))
+    ue = sp.exp(
+        sp.cos(4 * sp.pi * x) * sp.sin(2 * sp.pi * y)
+    )
+
     sol = Poisson2D(1)
+
     r, _, _ = sol.convergence_rates(ue)
+
     assert abs(r[-1] - 2) < 1e-2
 
 
 def test_interpolation():
-    ue = sp.exp(sp.cos(4 * sp.pi * x) * sp.sin(2 * sp.pi * y))
+    ue = sp.exp(
+        sp.cos(4 * sp.pi * x) * sp.sin(2 * sp.pi * y)
+    )
+
     sol = Poisson2D(1)
+
     N = 100
     U = sol(N, ue)
     h = sol.p.L / N
-    assert abs(sol.eval(U, 0.52, 0.63) - ue.subs({x: 0.52, y: 0.63}).n()) < 1e-3
-    assert abs(sol.eval(U, h / 2, 1 - h / 2) - ue.subs({x: h, y: 1 - h / 2}).n()) < 1e-3
+
+    assert abs(
+        sol.eval(U, 0.52, 0.63)
+        - ue.subs({x: 0.52, y: 0.63}).n()
+    ) < 1e-3
+
+    assert abs(
+        sol.eval(U, h / 2, 1 - h / 2)
+        - ue.subs({x: h, y: 1 - h / 2}).n()
+    ) < 1e-3
 
 
 if __name__ == "__main__":

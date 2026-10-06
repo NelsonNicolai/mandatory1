@@ -14,7 +14,6 @@ class Poisson:
         u''(x) = f(x), x in [0, L], u(0) = a, u(L) = b
 
     where a and b are numbers.
-
     """
 
     def __init__(self, L: float = 1):
