@@ -26,7 +26,9 @@ class Wave2D:
             The x-coordinates of the mesh
         yij : 2D array
             The y-coordinates of the mesh"""
-        raise NotImplementedError("The create_mesh method is not implemented yet.")
+        xi = self.p.create_mesh(N)
+        xij, yij = np.meshgrid(xi, xi, indexing="ij", sparse=sparse)
+        return xij, yij
 
     def D2(self, N: int) -> sparse.lil_matrix:
         """Return second order differentiation matrix
@@ -40,12 +42,19 @@ class Wave2D:
         D : scipy sparse LIL matrix
             The second order differentiation matrix
         """
-        raise NotImplementedError("The D2 method is not implemented yet.")
+        dx = 1 / N
+
+        D = sparse.diags([1., -2., 1.], [-1, 0, 1], (N + 1, N + 1), format="lil")
+        D[0, :4] = 2, -5, 4, -1
+        D[-1, -4:] = -1, 4, -5, 2
+        D /= dx**2
+
+        return D
 
     @property
     def w(self):
         """Return the dispersion coefficient"""
-        raise NotImplementedError("The w property is not implemented yet.")
+        return self._w
 
     def ue(self, mx: int, my: int) -> sp.Expr:
         """Return the exact standing wave
@@ -71,12 +80,15 @@ class Wave2D:
         mx, my : int
             Parameters for the standing wave
         """
-        raise NotImplementedError("The initialize method is not implemented yet.")
+        xij, yij = self.create_mesh
+        U = sp.lambdify((x,y),self.ue(mx,my), "numpy")
+        return U(xij,yij)
+
 
     @property
     def dt(self) -> float:
         """Return the time step"""
-        raise NotImplementedError("The dt property is not implemented yet.")
+            return self._dt
 
     def l2_error(self, u: np.ndarray, t0: float) -> float:
         """Return l2-error norm
@@ -88,7 +100,8 @@ class Wave2D:
         t0 : number
             The time of the comparison
         """
-        raise NotImplementedError("The l2_error method is not implemented yet.")
+        
+
 
     def apply_bcs(self, u: np.ndarray):
         """Apply boundary conditions to the solution mesh function
@@ -98,7 +111,10 @@ class Wave2D:
         u : array
             The solution mesh function
         """
-        raise NotImplementedError("The apply_bcs method is not implemented yet.")
+        u[0] = 0
+        u[-1] = 0
+        u[:, -1] = 0
+        u[:, 0] = 0
 
     def __call__(
         self,
