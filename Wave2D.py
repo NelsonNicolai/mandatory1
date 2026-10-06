@@ -8,7 +8,6 @@ x, y, t = sp.symbols("x,y,t")
 class Wave2D:
     """Class for solving the 2D wave equation"""
 
-
     def create_mesh(
         self, N: int, sparse: bool = False
     ) -> tuple[np.ndarray, np.ndarray]:
@@ -100,7 +99,7 @@ class Wave2D:
         t0 : number
             The time of the comparison
         """
-        
+
 
 
     def apply_bcs(self, u: np.ndarray):
@@ -150,7 +149,45 @@ class Wave2D:
         If store_data > 0, then return a dictionary with key, value = timestep, solution
         If store_data == -1, then return the two-tuple (h, l2-error)
         """
-        raise NotImplementedError("The __call__ method is not implemented yet.")
+        #MISCELLANOUS
+
+
+        #STEP 1
+        Unm1 = self.initialize(N, mx, my)
+        Un   = self.initialize(N,mx,my)
+
+        #STEP 2
+        k = (c*self.dt)**
+
+        if store_data>0:
+                keys   = []
+                values = []
+            for n in range (N):
+                Unp1 = 2Un - Unm1 + k *(self.D2(N)*Un+Un*self.D2(N).transpose)
+                self.apply_bcs(Unp1)
+
+                keys.append(n)
+                values.append(Unp1)
+
+                #swapping solutions
+                Unm1[:] = Un
+                Un[:]   = Unp1
+            return dict(zip(keys,values))
+
+        elif store_data == -1:
+            for n in range (N):
+                Unp1 = 2Un - Unm1 + k *(self.D2(N)*Un+Un*self.D2(N).transpose)
+                self.apply_bcs(Unp1)
+
+                keys.append(n)
+                values.append(Unp1)
+            
+
+
+        elif store_data < -1:
+            raise ValueError("not acceptable value for store_data")
+
+
 
     def convergence_rates(
         self, m: int = 4, cfl: float = 0.1, Nt: int = 10, mx: int = 3, my: int = 3
@@ -193,7 +230,14 @@ class Wave2D:
 
 class Wave2D_Neumann(Wave2D):
     def D2(self, N: int) -> sparse.lil_matrix:
-        raise NotImplementedError("The D2 method is not implemented yet.")
+        dx = 1 / N
+
+        D = sparse.diags([1., -2., 1.], [-1, 0, 1], (N + 1, N + 1), format="lil")
+        D[0, :4] = 2, -5, 4, -1
+        D[-1, -4:] = -1, 4, -5, 2
+        D /= dx**2
+
+        return D
 
     def ue(self, mx: int, my: int) -> sp.Expr:
         raise NotImplementedError("The ue method is not implemented yet.")
