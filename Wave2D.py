@@ -288,5 +288,4 @@ def test_convergence_wave2d_neumann():
 
 
 def test_exact_wave2d():
-    raise NotImplementedError("The test_exact_wave2d function is not implemented yet.")
-
+    raise NotImplementedError

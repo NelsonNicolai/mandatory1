@@ -58,8 +58,8 @@ class Poisson2D:
         dx = self.L / N
         dy = self.L / N
 
-        D2x = self.p.D2(N, dx) * (1.0 / dx**2)
-        D2y = self.p.D2(N, dy) * (1.0 / dy**2)
+        D2x = self.p.D2(N, dx)
+        D2y = self.p.D2(N, dy)
 
         d2x2 = sparse.kron(D2x, sparse.eye(N + 1))
         d2y2 = sparse.kron(sparse.eye(N + 1), D2y)
@@ -107,18 +107,16 @@ class Poisson2D:
         vecue = meshue.ravel()
         vecmesh = meshfunc.ravel()
 
-        vecmesh[Index] = vecue[Index]
-        b = vecmesh
+        b = vecmesh.copy()
+        b[Index] = vecue[Index]
 
         # making A
         A = self.laplace(N)
+        A = A.tolil()
         for i in Index:
-            A[i, :] = 0
-            A[i, i] = 1
-            vecmesh[i] = vecue[i]
-
+            A[i]=0
+            A[i,i]=1
         A = A.tocsr()
-
         return A, b
 
     def meshfunction(
@@ -140,13 +138,14 @@ class Poisson2D:
     def get_boundary_indices(self, N: int) -> np.ndarray:
         """Return indices of vectorized matrix that belongs to the boundary."""
         n = N + 1
+        
+        top = np.arange(n)
+        bot = np.arange(n * (n - 1), n * n)
+        lef = np.arange(0, n * n, n)
+        rig = np.arange(n - 1, n * n, n)
 
-        top = np.arange(0, n)
-        bottom = np.arange(N * n, (N + 1) * n)
-        left = np.arange(0, (N + 1) * n, n)
-        right = np.arange(N, (N + 1) * n, n)
-
-        return np.unique(np.concatenate([top, bottom, left, right]))
+        index = np.concatenate([top,lef,rig,bot])
+        return np.unique(index)
 
     def l2_error(self, u: np.ndarray, ue: sp.Expr) -> float:
         """Return l2-error
@@ -226,55 +225,35 @@ class Poisson2D:
 
         return r, np.array(E), np.array(h)
 
-    def eval(self, U: np.ndarray, x: float, y: float) -> float:
-        """Return u(x, y)
+    def eval(self, U: np.ndarray, xval: float, yval: float) -> float:
+        """Return interpolated u(xval, yval)."""
 
-        Parameters
-        ----------
-        x, y : numbers
-            The coordinates for evaluation
-
-        Returns
-        -------
-        The value of u(x, y)
-        """
-       
-
-        Npoints = 2
-
-        xij,yij = self.create_mesh(N)
-
-        N = len(U) - 1
+        N = U.shape[0] - 1
         dx = self.L / N
-        dy = self.L / N
 
-        closestx = x // dx
-        closesty = y // dy
+        # Find the nearest grid point
+        ix = int(round(xval / dx))
+        iy = int(round(yval / dx))
 
-        upperx = closestx + Npoints
-        lowerx = closestx - Npoints
+        # Use 4 points in each direction
+        ix = max(1, min(ix, N - 2))
+        iy = max(1, min(iy, N - 2))
 
-        uppery = closesty + Npoints
-        lowery = closesty - Npoints
+        xij, yij = self.create_mesh(N)
 
-        lx = Lagrangebasis(
-            xij[lowerx:upperx, 0],
-            x=x
-        )
+        xs = xij[ix - 1:ix + 3, 0]
+        ys = yij[0, iy - 1:iy + 3]
 
-        ly = Lagrangebasis(
-            yij[0, lowery:uppery],
-            x=y
-        )
+        basisx = Lagrangebasis(xs, x=x)
+        basisy = Lagrangebasis(ys, x=y)
 
         L2 = Lagrangefunction2D(
-            U[lowerx:upperx, lowery:uppery],
-            lx,
-            ly
+            U[ix - 1:ix + 3, iy - 1:iy + 3],
+            basisx,
+            basisy
         )
 
-        return L2.subs({x: x, y: y})
-
+        return float(L2.subs({x: xval, y: yval}).evalf())
 
 def Lagrangebasis(xj, x=x):
     """Construct Lagrange basis for points in xj
