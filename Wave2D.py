@@ -99,6 +99,21 @@ class Wave2D:
         t0 : number
             The time of the comparison
         """
+        N = len(u) - 1
+
+        xij, yij = self.create_mesh(N)
+        meshue = self.meshfunction(self.ue, xij, yij, t)
+
+        # defining Delta x & Delta y
+        dx = self.L / N
+        dy = self.L / N
+        errsum = 0
+
+        errsum = np.sum((u - meshue) ** 2)
+
+        errnorm = (dx * dy * errsum) ** 0.5
+
+        return errnorm
 
 
 
@@ -157,7 +172,7 @@ class Wave2D:
         Un   = self.initialize(N,mx,my)
 
         #STEP 2
-        k = (c*self.dt)**
+        k = (c*self.dt)**2
 
         if store_data>0:
                 keys   = []
@@ -179,9 +194,17 @@ class Wave2D:
                 Unp1 = 2Un - Unm1 + k *(self.D2(N)*Un+Un*self.D2(N).transpose)
                 self.apply_bcs(Unp1)
 
-                keys.append(n)
-                values.append(Unp1)
-            
+                #swapping solutions
+                Unm1[:] = Un
+                Un[:]   = Unp1
+
+            h = 1 / N
+
+            T = Nt * self.dt
+            l2 = self.l2_error(Un,T)
+
+            return h, l2
+
 
 
         elif store_data < -1:
@@ -240,10 +263,16 @@ class Wave2D_Neumann(Wave2D):
         return D
 
     def ue(self, mx: int, my: int) -> sp.Expr:
-        raise NotImplementedError("The ue method is not implemented yet.")
+        return sp.cos(mx * sp.pi * x) * sp.cos(my * sp.pi * y) * sp.cos(self.w * t)
 
     def apply_bcs(self, u: np.ndarray):
-        raise NotImplementedError("The apply_bcs method is not implemented yet.")
+    # x boundaries: du/dx = 0
+    u[0, :] = u[1, :]
+    u[-1, :] = u[-2, :]
+
+    # y boundaries: du/dy = 0
+    u[:, 0] = u[:, 1]
+    u[:, -1] = u[:, -2]
 
 
 def test_convergence_wave2d():
