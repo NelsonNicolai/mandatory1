@@ -320,10 +320,32 @@ def test_convergence_wave2d_neumann():
 
 
 def test_exact_wave2d():
-    raise NotImplementedError
+    #constants, defined
+    N  = 10
+    Nt = 10
+    cfl= 1 / (2**0.5)
+    c  = 1
+    mx = 2
+    my = 2
+    store_data = -1
 
+    #constants, derived
+    dt = cfl / (c * N)
+    T  = Nt * dt
+
+    #initialising class
+    dir = Wave2D()
+    neu = Wave2D_Neumann()
+
+    #l2
+    hdir, l2dir = dir(N,Nt,cfl,c,mx,my,store_data)
+    hneu, l2neu = neu(N,Nt,cfl,c,mx,my,store_data)
+    #metrics
+    assert l2dir < 1e-12
+    assert l2neu < 1e-12
 
 if __name__ == "__main__":
     test_convergence_wave2d()
     test_convergence_wave2d_neumann()
+    test_exact_wave2d()
     print("All tests passed!")
