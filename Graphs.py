@@ -21,9 +21,9 @@ solver = Wave2D_Neumann()
 N  = 25
 Nt = 25
 cfl= 1 / (2**0.5)
-c  = 1
-mx = 3
-my = 3
+c  = 0.5
+mx = 2
+my = 2
 store_data = 1
 
 #mesh initialization
