@@ -1,1 +1,1 @@
-Put the report here either as a notebook or as a pdf.
+The report and movie for mandatory assignment in Numerical methods for partial differential equation at UiO for Nelson Nicolai's Hand in.
