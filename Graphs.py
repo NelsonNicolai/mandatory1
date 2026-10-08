@@ -18,12 +18,12 @@ from Wave2D import Wave2D_Neumann
 solver = Wave2D_Neumann()
 
 #constants defined
-N  = 50
-Nt = 1000
+N  = 25
+Nt = 25
 cfl= 1 / (2**0.5)
 c  = 1
-mx = 2
-my = 2
+mx = 3
+my = 3
 store_data = 1
 
 #mesh initialization
@@ -42,9 +42,9 @@ for n, val in sol_neumann.items():
     #                        linewidth=0, antialiased=False)
     frames.append([frame])
 
-ani = animation.ArtistAnimation(fig, frames, interval=200, blit=True,
+ani = animation.ArtistAnimation(fig, frames, interval=300, blit=True,
                                 repeat_delay=1000)
 
-ani.save("NeumannWaveMovie.gif")
+ani.save("report/NeumannWaveMovie.gif")
 
 print("all done")
