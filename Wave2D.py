@@ -321,8 +321,8 @@ def test_convergence_wave2d_neumann():
 
 def test_exact_wave2d():
     #constants, defined
-    N  = 10
-    Nt = 10
+    N  = 50
+    Nt = 100
     cfl= 1 / (2**0.5)
     c  = 1
     mx = 2
